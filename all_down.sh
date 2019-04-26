@@ -7,7 +7,7 @@ main_dir=$(dirname $0) #comment out if using alternative
 #main_dir='/Users/mrosello' #comment out if usin same directory as this script
 main_log="${main_dir}/main_log.txt"
 #database shell: (should already exist at run time)
-database="${main_dir}/EbiSample.db"
+empty_database="${main_dir}/EbiSample.db"
 #python runnables
 runnable_fillsample='${main_dir}/fillsamples.py'
 fillsamplelogfile="${main_dir}/fillsamples.log"
@@ -40,6 +40,10 @@ res_read_study_log="${res_read_study}.log"
 #    result:analysis_study
 res_anal_study="${main_dir}/res_anal_study.json"
 res_anal_study_log="${res_anal_study}.log" 
+
+#copy empty db so that the original can be reused during multiple runs
+database="${main_dir}/EbiSample_content.db"
+cp $empty_database $database
 
 #WGET files required for filling $database
 
@@ -184,13 +188,13 @@ chmod o=r $readme
 
 echo "**completed**" | tee -a $main_log
 echo "if all is well you can remove the following:" | tee -a $main_log
-echo "${main_dir}/EbiSample.db" | tee -a $main_log
-echo "${main_dir}/fillsamples.log" | tee -a $main_log
-echo "${main_dir}/dumpsamples.log" | tee -a $main_log
-echo "${main_dir}/all_samp.xml" | tee -a $main_log
-echo "${main_dir}/nolimit_analysis.json" | tee -a $main_log
-echo "${main_dir}/allstud.json" | tee -a $main_log
-echo "${main_dir}/study_dump.json" | tee -a $main_log
-echo "${main_dir}/gp_dump.json" | tee -a $main_log
+echo "$database" | tee -a $main_log
+echo "$fillsamplelogfile" | tee -a $main_log
+echo "$studydumplogfile" | tee -a $main_log
+echo "$ENAsamp" | tee -a $main_log
+echo "$ENAanal" | tee -a $main_log
+echo "$ENAstud" | tee -a $main_log
+echo "$studyjson" | tee -a $main_log
+echo "$germplasmjson" | tee -a $main_log
 
 

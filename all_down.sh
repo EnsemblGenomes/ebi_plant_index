@@ -9,10 +9,10 @@ main_log="${main_dir}/main_log.txt"
 #database shell: (should already exist at run time)
 empty_database="${main_dir}/EbiSample.db"
 #python runnables
-runnable_fillsample='${main_dir}/fillsamples.py'
+runnable_fillsample="${main_dir}/fillsamples.py"
 fillsamplelogfile="${main_dir}/fillsamples.log"
 #log files for python runnables
-runnable_studydump='${main_dir}/dumpsamples.py'
+runnable_studydump="${main_dir}/dumpsamples.py"
 studydumplogfile="${main_dir}/dumpsamples.log"
 #ENA API dumps for plant samples (xml), plant studies (json), analysis (ERZ) data (json)
 #wget logs are saved, but these are removed later

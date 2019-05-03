@@ -146,7 +146,7 @@ $runnable_fillsample $database $ENAsamp $ENAanal $ENAstud $fillsamplelogfile
 problem=$?
 if [ $problem -ne 0 ] 
 then
-    echo "problem encountered while running ${runnable_fillsample} check log at ${fillsamplelogfile}" | tee -a $main_log
+    echo "problem encountered while running ${runnable_fillsample} check log at ${fillsamplelogfile} and sterr" | tee -a $main_log
     exit
 fi
 newtime=$(date '+%s')
@@ -163,13 +163,13 @@ $runnable_studydump $database $studyjson $germplasmjson $studydumplogfile
 problem=$?
 if [ $problem -ne 0 ] 
 then
-    echo "problem encountered while running ${runnable_studydump} check log at ${studydumplogfile}" | tee -a $main_log
+    echo "problem encountered while running ${runnable_studydump} check log at ${studydumplogfile} and sterr" | tee -a $main_log
     exit
 fi
 newtime=$(date '+%s')
 seconds=$(echo $newtime - $timenow | bc)
 echo "completed step 5: ${runnable_studydump} in ${seconds} seconds" | tee -a $main_log
-echo "moving ${baseS} and ${baseG} to ftp directory: ${ftp_dir}"
+echo "moving ${baseS} and ${baseG} to ftp directory: ${ftp_dir}" | tee -a $main_log
 chmod o=r $studyjson $germplasmjson
 cp $studyjson $ftp_dir
 cp $germplasmjson $ftp_dir
@@ -182,8 +182,8 @@ seconds=$(echo "$seconds - $days * (60 * 60 * 24)" | bc)
 hours=$(echo "$seconds / (60 * 60)" | bc)
 seconds=$(echo "$seconds - $hours * (60 * 60)" | bc)
 minutes=$(echo "$seconds / 60" | bc)
-echo "pipeline took $days days $hours hours and $minutes minutes" >> $readme
-echo "find pipeline here: https://github.com/mrossello/ebi_plant_index.git" >> $readme
+echo "pipeline took $days days $hours hours and $minutes minutes" | tee -a $readme $main_log
+echo "find pipeline here: https://github.com/mrossello/ebi_plant_index" | tee -a $readme $main_log
 chmod o=r $readme
 
 echo "**completed**" | tee -a $main_log

@@ -385,6 +385,7 @@ class Study:
 
     def printJ(self):
         d = {}
+        d['studyTypeName'] = 'Genotyping' #late request
         d['studyDbId'] = self.prj
         d['organism'] = self.orgs
         d['documentationURL'] = 'https://www.ebi.ac.uk/ena/data/view/' + self.prj

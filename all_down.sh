@@ -18,6 +18,7 @@ studydumplogfile="${main_dir}/dumpsamples.log"
 #wget logs are saved, but these are removed later
 ENAsamp="${main_dir}/all_samp.xml"
 ENAsamp_log="${ENAsamp}.log"
+ENAsampTries=6 #how many times to try sample download (usually needs multiple attempts)
 ENAanal="${main_dir}/nolimit_analysis.json"
 ENAanal_log="${ENAanal}.log"
 ENAstud="${main_dir}/allstud.json"
@@ -53,15 +54,28 @@ echo "step 1: wget of plant samples in ENA using REST URL:" | tee -a $main_log
 echo "$get_all_ena_plant_samples" | tee -a $main_log
 timestart=$(date '+%s')
 get_all_ena_plant_samples='https://www.ebi.ac.uk/ena/data/view/Taxon:33090&portal=sample&subtree=true&display=xml'
-wget -O $ENAsamp $get_all_ena_plant_samples >& $ENAsamp_log
-eof=$(tail -c 7 $ENAsamp) #last 7 char = </ROOT>
-if [[ "$eof" != "</ROOT>" ]] #very basic check if download worked
-then 
-    echo "may have been a problem getting samples (looking for file ending with '</ROOT>')" | tee -a $main_log
-    echo "file:$ENAsamp" | tee -a $main_log
-    echo "check wget log:$ENAsamp_log" | tee -a $main_log
-    exit
-fi
+
+for i in {1..$ENAsampTries}
+do
+    wget -O $ENAsamp $get_all_ena_plant_samples >& $ENAsamp_log
+    eof=$(tail -c 7 $ENAsamp) #last 7 char = </ROOT>
+    if [[ "$eof" != "</ROOT>" ]] #very basic check if download worked
+    then 
+	if [ $i -lt $ENAsampTries ]; then
+	    rm $ENAsamp
+	    echo "tried wget of plant samples $i times" | tee -a $main_log
+	    continue
+	fi
+	echo "may have been a problem getting samples (looking for file ending with '</ROOT>') after $i tries" | tee -a $main_log
+	echo "file:$ENAsamp" | tee -a $main_log
+	echo "check wget log:$ENAsamp_log" | tee -a $main_log
+	exit
+    else
+	break
+    fi
+done
+
+
 rm $ENAsamp_log 
 newtime=$(date '+%s')
 seconds=$(echo $newtime - $timestart | bc)

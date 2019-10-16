@@ -13,7 +13,12 @@ Jeremy Destin <Jeremy.Destin@inra.fr>
 
 ### Customisations
 
-ENA and Biosamples do not impose a mandatory germplasm field for plant sample submissions but the germplasm id is central to crop phenotyping experiments. To create the germplasm JSON each EBI sample is checked for a germplasm id using a regular expression on its main id fields. If found, a germplasm is created by extracting the guessed germplasm id from the sample metadata along with other (potentially informative) attributes. 
+ENA and Biosamples do not impose a mandatory germplasm field for plant sample submissions but the germplasm id is central to crop phenotyping experiments. To create the germplasm JSON each EBI sample is checked for a germplasm id using a regular expression on its main id fields. If found, a germplasm is created by extracting the guessed germplasm id from the sample metadata along with other (potentially informative) attributes. You can also pull other metadata fields into the germplasm objects and you can provide MIAPPE terms for them. For instance if and when the ENA sample as 'cultivar' annotated you can pull it into the germplasm object under MIAPPE term 'subTaxa'. To do this edit 2 list variable in dumpsamples.py: att_search and brapi_equiv. For example:
+```python
+att_search = ['cultivar','biomaterial_provider','ref_biomaterial','geographic location (country and/or sea)','ecotype']
+brapi_equiv = ['subTaxa','instituteName','commonCropName','countryOfOriginCode','subTaxa'] 
+```
+In the above example both cultivar and ecotype will get put into MIAPPE 'subTaxa' field, so it is simply done by order of occurence in both lists. This feature is useful because you will find common fields being annotated in the ENA samples which you can use the EbiSample_content.db sqlite3 database which will appear after the main shell script is run. Look at the SAMPLE table and join with ATTRIBUTES table SAMPLE.ID = ATTRIBUTES.ID. Alternatively, instead of looking for common attributes in ENA samples you may choose to look for attributes that have been agreed in the community or that are form a specific ENA checklist (https://www.ebi.ac.uk/ena/submit/checklists).
 
 ### Python packages
 Version used: Python 3.5.1

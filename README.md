@@ -42,4 +42,17 @@ For testing or running independently you can enter a virtual environment by exec
 source /nfs/production/panda/ensemblgenomes/development/mrossello/python_installation/bin/activate
 ```
 
+### Set up variables
+All variables and settings are in the bash shell script all_down.sh.
+main_dir defaults to the repo directory as downloaded. This should be fine and will be used s the location for the next few veriables including the log files.
+Variable 'ftp_dir' is the location of the ftp server where the JSONs will be dumped. This is already selected and communicated to our FAIRDARE colleagues but ofcourse can be changed if necessary. 
+The last view customiseable variables are for temporary files and these are deleted at run time so it is not necessary to change these.
+
+### Execute the code
+
+To execute the code run the bash shell script all_down.sh. You can send it to the EBI LSF cluster or set up a cron job with it. Do not run it on any the shared nodes (ebi-cli for example) because it takes a while. Last run for example took took 1 days 6 hours and 24 minutes.
+```bash
+bsub all_down.sh
+```
+
 

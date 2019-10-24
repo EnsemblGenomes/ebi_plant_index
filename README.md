@@ -57,6 +57,21 @@ bsub all_down.sh
 If you have sent the job ot the LSF cluster you can track the progress and what stage the code is at by looking at file main_log.txt (or whatever you've applied to variable 'main_log' variable in all_down.sh). 
 
 #### Step One
-The first step will download all samples in the ENA under the viridiplantae division. You may want to be more precise that than the whole plants division. In which case you can change the taxon id in the 'get_all_ena_plant_samples' variable. This step results in a large XML file of sample objects and there can be so many samples that the job can time out. I found that each time I ran it more samples would get downloaded suggesting that the search gets cached by ENA servers and they can deliver the results more quickly each time. So I put this wget call in a loop to enable multiple calls in succession (if required).
+The first step will download all samples in the ENA under the viridiplantae division. You may want to be more precise that than the whole plants division. In which case you can change the taxon id in the 'get_all_ena_plant_samples' variable. This step results in a large XML file of sample objects and there can be so many samples that the job can time out. I found that each time I ran it more samples would get downloaded suggesting that the search gets cached by ENA servers and they can deliver the results more quickly each time. So I put this wget call in a loop to enable multiple calls in succession (if required). You can find wget report in file in $ENAsamp_log variable.
+
+#### Step Two
+While the samples downloaded in step one will contain detals of associated DNASeq files, interpretted files like VCFs, TABS, CRAMS are wrapped in analysis objects so in this step we search for all analysis objects that point to samples that are in the viridiplantae division. In this step wget is used to download the analysis objects in JSON format. wgte log file is in $ENAanal_log variable.
+
+#### Step Three
+Samples and analysis are greouped by the ENA into studies. The final JSON output provided by this code is a collection of BrAPI studies so we will use the same ENA study groupings. In this step we make 3 separate calls for studies because while the outputs overlap with each other (a lot of redundancy is expected) we may miss some studies out if we do not apply all three. The API calls are 'result=study', 'result=read_study' and 'result=analysis_study'. Next the 3 JSON files are merged into 1. Redundancy is not removed but it will be ignored later on.
+
+#### Step Four
+Step four runs the fillsample python class ($runnable_fillsample) and populates the SQLite database provided in the repo. The database is cloned first so that the original (empty) version can be reused if the code is rerun at regular intervals. You can check the output of this process by looking at the file in $fillsamplelogfile variable. Errors in reading some objects into the database will occur but these are at an acceptable level and usually result from the object not conforming to expected standards. 
+
+#### Step Five
+Step Five runs the dumpsamples python class ($runnable_studydump) and uses the SQLite database to print all the studies in JSON format and also tries to identify germplasms from the samples and put them into a germplasm JSON file. Progress of this Python file can be tracked by looking at the lof file in $studydumplogfile variable. Again, some errors are acceptable, for instance if the annotation tags are used in the same sample (if there are 2 x tissue_type only 1 gets added). 
+
+##### Final Step
+The newly created study JSON and germplasm JSON are moved to the ftp server at the location in variable 'ftp_dir'. An readme text file is also added here which contains the date of the latest run and the length of time it took.
 
 

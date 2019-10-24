@@ -54,5 +54,9 @@ To execute the code run the bash shell script all_down.sh. You can send it to th
 ```bash
 bsub all_down.sh
 ```
+If you have sent the job ot the LSF cluster you can track the progress and what stage the code is at by looking at file main_log.txt (or whatever you've applied to variable 'main_log' variable in all_down.sh). 
+
+#### Step One
+The first step will download all samples in the ENA under the viridiplantae division. You may want to be more precise that than the whole plants division. In which case you can change the taxon id in the 'get_all_ena_plant_samples' variable. This step results in a large XML file of sample objects and there can be so many samples that the job can time out. I found that each time I ran it more samples would get downloaded suggesting that the search gets cached by ENA servers and they can deliver the results more quickly each time. So I put this wget call in a loop to enable multiple calls in succession (if required).
 
 

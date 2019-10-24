@@ -71,7 +71,7 @@ Step four runs the fillsample python class ($runnable_fillsample) and populates 
 #### Step Five
 Step Five runs the dumpsamples python class ($runnable_studydump) and uses the SQLite database to print all the studies in JSON format and also tries to identify germplasms from the samples and put them into a germplasm JSON file. Progress of this Python file can be tracked by looking at the lof file in $studydumplogfile variable. Again, some errors are acceptable, for instance if the annotation tags are used in the same sample (if there are 2 x tissue_type only 1 gets added). 
 
-##### Final Step
+#### Final Step
 The newly created study JSON and germplasm JSON are moved to the ftp server at the location in variable 'ftp_dir'. An readme text file is also added here which contains the date of the latest run and the length of time it took.
 
 

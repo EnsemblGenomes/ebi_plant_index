@@ -5,6 +5,7 @@ import ijson
 import sqlite3
 import sys
 import logging
+from os.path import dirname
 
 class FillSamples:
 
@@ -157,6 +158,9 @@ class FillSamples:
                     index = 1
                 file_url = split_url[index]
             md5 = o['submitted_md5'].split(';')[index] #tested with empty values and does not throw error
+            if len(split_url) > 2:
+                file_url = os.path.dirname(split_url[index]) 
+
             study = o['study_accession']
             atype = o['analysis_type']
             title = o['analysis_title']

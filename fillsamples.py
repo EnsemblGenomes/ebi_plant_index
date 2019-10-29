@@ -229,7 +229,7 @@ class EnaAccTool:
     def guessRunLink(runid):
         #SRR7849281 = ftp.sra.ebi.ac.uk/vol1/fastq/SRR784/001/SRR7849281/SRR7849281_1.fastq.gz
         #And one for _2 file too. can't know if paired so will guess directory only
-        baseurl = 'ftp.sra.ebi.ac.uk/vol1/fastq/'
+        baseurl = 'ftp://ftp.sra.ebi.ac.uk/vol1/fastq/'
         pref = runid[:6]
         sev = '00' + runid[-1]
         fullurl = baseurl + pref + '/' + runid

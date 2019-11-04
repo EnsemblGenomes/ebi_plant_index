@@ -5,7 +5,8 @@ import ijson
 import sqlite3
 import sys
 import logging
-from os.path import dirname
+import os
+#from os.path import dirname
 
 class FillSamples:
 

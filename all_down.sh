@@ -197,7 +197,7 @@ hours=$(echo "$seconds / (60 * 60)" | bc)
 seconds=$(echo "$seconds - $hours * (60 * 60)" | bc)
 minutes=$(echo "$seconds / 60" | bc)
 echo "pipeline took $days days $hours hours and $minutes minutes" | tee -a $readme $main_log
-echo "find pipeline here: https://github.com/mrossello/ebi_plant_index" | tee -a $readme $main_log
+echo "find pipeline here: https://github.com/EnsemblGenomes/ebi_plant_index" | tee -a $readme $main_log
 chmod o=r $readme
 
 echo "**completed**" | tee -a $main_log

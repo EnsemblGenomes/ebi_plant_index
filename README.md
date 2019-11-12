@@ -6,7 +6,10 @@ As part of Elixir Work Package 7, Ensembl Plants have produced this project to c
 
 The EBI has many databases and services so it is not feasible to build a custom plant API on top of them. However EBI is an important resource for genetic experiments including NGS sequencing, genotyping/variant calling, reference assemblies and expression studies (RNA-Seq). Specialist EBI groups in these data types exist such as EVA, Expression Atlas and BioSamples but all the data files are archived at the ENA, who have powerful search and API services. So in this project ENA is used to find all plant data across the different services at the EBI and 2 JSON files are created. One, called gp_dump.json contains all the germplasms found. It corresponds to brapi/v1/germplasms BrAPI call. The second one is study_dump.json and this contains all studies found and corresponds to BrAPI call brapi/v1/studies. Each study has a list of germplasms used and each germplasm has a list of studies it belongs to so the files cross reference each other. 
 
-The JSON files are placed on an ftp server so that FAIRDARE can access them. The contacts at FAIRDARE arranging this are:
+The JSON files are placed on an ftp server so that FAIRDARE can access them. 
+Currently the FTP URL is: <ftp://ftp.ensemblgenomes.org/pub/misc_data/plant_index>
+
+The contacts at FAIRDARE arranging this are:
 Cyril Pommier <cyril.pommier@inra.fr>
 Bilal El-Houdaigui <Bilal.El-Houdaigui@inra.fr>
 Jeremy Destin <Jeremy.Destin@inra.fr>

@@ -1,19 +1,19 @@
-#!/usr/local/bin/bash
+#!/usr/bin/env bash
 
-#MAIN FILES (edit these for customisation)
-
-
+# MAIN FILES (edit these for customisation)
 main_dir=$(dirname $0) #comment out if using alternative
-#main_dir='/Users/mrosello' #comment out if usin same directory as this script
 main_log="${main_dir}/main_log.txt"
 #database shell: (should already exist at run time)
 empty_database="${main_dir}/EbiSample.db"
+
 #python runnables
 runnable_fillsample="${main_dir}/fillsamples.py"
 fillsamplelogfile="${main_dir}/fillsamples.log"
+
 #log files for python runnables
 runnable_studydump="${main_dir}/dumpsamples.py"
 studydumplogfile="${main_dir}/dumpsamples.log"
+
 #ENA API dumps for plant samples (xml), plant studies (json), analysis (ERZ) data (json)
 #wget logs are saved, but these are removed later
 ENAsamp="${main_dir}/all_samp.xml"
@@ -22,8 +22,10 @@ ENAsampTries=6 #how many times to try sample download (usually needs multiple at
 ENAanal="${main_dir}/nolimit_analysis.json"
 ENAanal_log="${ENAanal}.log"
 ENAstud="${main_dir}/allstud.json"
+
 #json file dumps (they are put in main_dir before being copied to ftp_dir afterwards)
 ftp_dir='/nfs/ensemblgenomes/ftp/pub/misc_data/plant_index'
+
 #ftp://ftp.ensemblgenomes.org/pub/misc_data/plant_index/
 studyjson="${main_dir}/study_dump.json"
 germplasmjson="${main_dir}/gp_dump.json"

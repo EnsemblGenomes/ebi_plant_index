@@ -388,7 +388,7 @@ class Study:
         d['studyTypeName'] = 'Genotyping' #late request
         d['studyDbId'] = self.prj
         d['organism'] = self.orgs
-        d['documentationURL'] = 'https://www.ebi.ac.uk/ena/browse/view/' + self.prj
+        d['documentationURL'] = 'https://www.ebi.ac.uk/ena/browser/view/' + self.prj
         data = self.runs + self.vars + self.refs
         if len(data) > 0:
             d['dataLinks'] = data

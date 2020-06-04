@@ -54,6 +54,7 @@ echo "step 1: wget of plant samples in ENA using REST URL:" | tee -a $main_log
 echo "$get_all_ena_plant_samples" | tee -a $main_log
 timestart=$(date '+%s')
 get_all_ena_plant_samples='https://www.ebi.ac.uk/ena/data/view/Taxon:33090&portal=sample&subtree=true&display=xml'
+# Jun2020 : dunno how to replace this URL with the upcoming ena/browse/view entry point
 
 for i in {1..$ENAsampTries}
 do

@@ -58,20 +58,20 @@ timestart=$(date '+%s')
 #get_all_ena_plant_samples='https://www.ebi.ac.uk/ena/data/view/Taxon:33090&portal=sample&subtree=true&display=xml'
 #Jun2020 : dunno how to replace this URL with the upcoming ena/browse/view entry point
 #Jan2021 : updated URL produces TSV not XML
-get_all_ena_plant_samples='https://www.ebi.ac.uk/ena/portal/api/links/taxon?accession=33090&result=sample&subtree=true&format=tsv';
+get_all_ena_plant_samples='https://www.ebi.ac.uk/ena/portal/api/links/taxon?accession=33090&result=sample&subtree=true&format=tsv&limit=0';
 
 for i in {1..$ENAsampTries}
 do
     wget -O $ENAsamp $get_all_ena_plant_samples >& $ENAsamp_log
-    eof=$(tail -1 $ENAsamp | cut -b 1-3 | ) # first 3 char 'SAM'
-    if [[ "$eof" != "SAM" ]] #very basic check if download worked
+    eof=$(tail -1 $ENAsamp | cut -b 1) # first char 'S' for SAM or SRS
+    if [[ "$eof" != "S" ]] #very basic check if download worked
     then 
 	if [ $i -lt $ENAsampTries ]; then
 	    rm $ENAsamp
 	    echo "tried wget of plant samples $i times" | tee -a $main_log
 	    continue
 	fi
-	echo "may have been a problem getting samples (looking for file ending with '</ROOT>') after $i tries" | tee -a $main_log
+	echo "may have been a problem getting samples (looking for lines with '^S') after $i tries" | tee -a $main_log
 	echo "file:$ENAsamp" | tee -a $main_log
 	echo "check wget log:$ENAsamp_log" | tee -a $main_log
 	exit
@@ -84,11 +84,11 @@ done
 rm $ENAsamp_log 
 newtime=$(date '+%s')
 seconds=$(echo $newtime - $timestart | bc)
-totalsamp=$(grep -c '</SAMPLE>' $ENAsamp) #useful count for later too
+totalsamp=$(grep -c '^SAM' $ENAsamp) #useful count for later too
 echo "completed step 1: wget of plant samples in ENA" | tee -a $main_log
 echo "took $seconds seconds" | tee -a $main_log
-echo "counted $totalsamp samples in XML file" | tee -a $main_log
-sed -i '/^Entry:/d' $ENAsamp # i noticed these lines which are not in xml format. will break parsing if not removed
+echo "counted $totalsamp samples in TSV file" | tee -a $main_log
+#sed -i '/^Entry:/d' $ENAsamp # i noticed these lines which are not in xml format. will break parsing if not removed
 
 
 #  JSON file containing 'analysis' data (variant files, alignment files etc ..) connected to plant samples 

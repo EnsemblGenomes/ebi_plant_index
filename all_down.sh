@@ -14,9 +14,9 @@ fillsamplelogfile="${main_dir}/fillsamples.log"
 runnable_studydump="${main_dir}/dumpsamples.py"
 studydumplogfile="${main_dir}/dumpsamples.log"
 
-#ENA API dumps for plant samples (xml), plant studies (json), analysis (ERZ) data (json)
+#ENA API dumps for plant samples (tsv), plant studies (json), analysis (ERZ) data (json)
 #wget logs are saved, but these are removed later
-ENAsamp="${main_dir}/all_samp.xml"
+ENAsamp="${main_dir}/all_samp.tsv"
 ENAsamp_log="${ENAsamp}.log"
 ENAsampTries=6 #how many times to try sample download (usually needs multiple attempts)
 ENAanal="${main_dir}/nolimit_analysis.json"
@@ -55,14 +55,16 @@ cp $empty_database $database
 echo "step 1: wget of plant samples in ENA using REST URL:" | tee -a $main_log
 echo "$get_all_ena_plant_samples" | tee -a $main_log
 timestart=$(date '+%s')
-get_all_ena_plant_samples='https://www.ebi.ac.uk/ena/data/view/Taxon:33090&portal=sample&subtree=true&display=xml'
-# Jun2020 : dunno how to replace this URL with the upcoming ena/browse/view entry point
+#get_all_ena_plant_samples='https://www.ebi.ac.uk/ena/data/view/Taxon:33090&portal=sample&subtree=true&display=xml'
+#Jun2020 : dunno how to replace this URL with the upcoming ena/browse/view entry point
+#Jan2021 : updated URL produces TSV not XML
+get_all_ena_plant_samples='https://www.ebi.ac.uk/ena/portal/api/links/taxon?accession=33090&result=sample&subtree=true&format=tsv';
 
 for i in {1..$ENAsampTries}
 do
     wget -O $ENAsamp $get_all_ena_plant_samples >& $ENAsamp_log
-    eof=$(tail -c 7 $ENAsamp) #last 7 char = </ROOT>
-    if [[ "$eof" != "</ROOT>" ]] #very basic check if download worked
+    eof=$(tail -1 $ENAsamp | cut -b 1-3 | ) # first 3 char 'SAM'
+    if [[ "$eof" != "SAM" ]] #very basic check if download worked
     then 
 	if [ $i -lt $ENAsampTries ]; then
 	    rm $ENAsamp

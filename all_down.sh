@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# updated step1 ENA URL on Jan2021 BCM
+
 # MAIN FILES (edit these for customisation)
 main_dir=$(dirname $0) #comment out if using alternative
 main_log="${main_dir}/main_log.txt"
@@ -16,7 +18,7 @@ studydumplogfile="${main_dir}/dumpsamples.log"
 
 #ENA API dumps for plant samples (tsv), plant studies (json), analysis (ERZ) data (json)
 #wget logs are saved, but these are removed later
-ENAsamp="${main_dir}/all_samp.tsv"
+ENAsamp="${main_dir}/all_samp.xml"
 ENAsamp_log="${ENAsamp}.log"
 ENAsampTries=6 #how many times to try sample download (usually needs multiple attempts)
 ENAanal="${main_dir}/nolimit_analysis.json"
@@ -56,22 +58,21 @@ echo "step 1: wget of plant samples in ENA using REST URL:" | tee -a $main_log
 echo "$get_all_ena_plant_samples" | tee -a $main_log
 timestart=$(date '+%s')
 #get_all_ena_plant_samples='https://www.ebi.ac.uk/ena/data/view/Taxon:33090&portal=sample&subtree=true&display=xml'
-#Jun2020 : dunno how to replace this URL with the upcoming ena/browse/view entry point
-#Jan2021 : updated URL produces TSV not XML
-get_all_ena_plant_samples='https://www.ebi.ac.uk/ena/portal/api/links/taxon?accession=33090&result=sample&subtree=true&format=tsv&limit=0';
+#Jan2021 debug https://www.ebi.ac.uk/ena/browser/api/xml/links/taxon?accession=3627&result=sample&limit=0&subtree=1
+get_all_ena_plant_samples='https://www.ebi.ac.uk/ena/browser/api/xml/links/taxon?accession=33090&result=sample&limit=0&subtree=1';
 
 for i in {1..$ENAsampTries}
 do
     wget -O $ENAsamp $get_all_ena_plant_samples >& $ENAsamp_log
-    eof=$(tail -1 $ENAsamp | cut -b 1) # first char 'S' for SAM or SRS
-    if [[ "$eof" != "S" ]] #very basic check if download worked
+    eof=$(tail -1 $ENAsamp | cut -b 1-13) 
+    if [[ "$eof" != "</SAMPLE_SET>" ]] #very basic check if download worked
     then 
 	if [ $i -lt $ENAsampTries ]; then
 	    rm $ENAsamp
 	    echo "tried wget of plant samples $i times" | tee -a $main_log
 	    continue
 	fi
-	echo "may have been a problem getting samples (looking for lines with '^S') after $i tries" | tee -a $main_log
+	echo "may have been a problem getting samples (looking for lines with '</SAMPLE_SET>') after $i tries" | tee -a $main_log
 	echo "file:$ENAsamp" | tee -a $main_log
 	echo "check wget log:$ENAsamp_log" | tee -a $main_log
 	exit
@@ -84,7 +85,7 @@ done
 rm $ENAsamp_log 
 newtime=$(date '+%s')
 seconds=$(echo $newtime - $timestart | bc)
-totalsamp=$(grep -c '^SAM' $ENAsamp) #useful count for later too
+totalsamp=$(grep -c '<SAMPLE ' $ENAsamp) #useful count for later too
 echo "completed step 1: wget of plant samples in ENA" | tee -a $main_log
 echo "took $seconds seconds" | tee -a $main_log
 echo "counted $totalsamp samples in TSV file" | tee -a $main_log

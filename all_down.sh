@@ -67,18 +67,18 @@ do
     eof=$(tail -1 $ENAsamp | cut -b 1-13) 
     if [[ "$eof" != "</SAMPLE_SET>" ]] #very basic check if download worked
     then 
-	if [ $i -lt $ENAsampTries ]; then
-	    rm $ENAsamp
-	    echo "tried wget of plant samples $i times" | tee -a $main_log
-	    continue
+		if [ $i -lt $ENAsampTries ]; then
+	    	rm $ENAsamp
+	    	echo "tried wget of plant samples $i times" | tee -a $main_log
+	    	continue
+		fi
+		echo "may have been a problem getting samples (looking for lines with '</SAMPLE_SET>') after $i tries" | tee -a $main_log
+		echo "file:$ENAsamp" | tee -a $main_log
+		echo "check wget log:$ENAsamp_log" | tee -a $main_log
+		exit
+ 	else
+		break
 	fi
-	echo "may have been a problem getting samples (looking for lines with '</SAMPLE_SET>') after $i tries" | tee -a $main_log
-	echo "file:$ENAsamp" | tee -a $main_log
-	echo "check wget log:$ENAsamp_log" | tee -a $main_log
-	exit
-    else
-	break
-    fi
 done
 
 
@@ -89,7 +89,7 @@ totalsamp=$(grep -c '<SAMPLE ' $ENAsamp) #useful count for later too
 echo "completed step 1: wget of plant samples in ENA" | tee -a $main_log
 echo "took $seconds seconds" | tee -a $main_log
 echo "counted $totalsamp samples in TSV file" | tee -a $main_log
-#sed -i '/^Entry:/d' $ENAsamp # i noticed these lines which are not in xml format. will break parsing if not removed
+# Feb2021 sed -i '/^Entry:/d' $ENAsamp # i noticed these lines which are not in xml format. will break parsing if not removed
 
 
 #  JSON file containing 'analysis' data (variant files, alignment files etc ..) connected to plant samples 

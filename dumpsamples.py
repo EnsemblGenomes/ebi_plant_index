@@ -1,5 +1,3 @@
-#!/nfs/production/panda/ensemblgenomes/development/mrossello/python_installation/bin/python
-
 import sqlite3
 from sqlite3 import Error
 import logging

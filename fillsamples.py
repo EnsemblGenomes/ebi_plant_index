@@ -1,5 +1,3 @@
-#!/nfs/production/panda/ensemblgenomes/development/mrossello/python_installation/bin/python
-
 from lxml import etree
 import ijson
 import sqlite3

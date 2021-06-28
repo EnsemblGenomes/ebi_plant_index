@@ -31,6 +31,9 @@ ftp_dir='/nfs/ensemblgenomes/ftp/pub/misc_data/plant_index'
 #ftp://ftp.ensemblgenomes.org/pub/misc_data/plant_index/
 studyjson="${main_dir}/study_dump.json"
 germplasmjson="${main_dir}/gp_dump.json"
+#in codon, TOBETESTED
+studyjson="${main_dir}/study.json"
+germplasmjson="${main_dir}/germplasm.json"
 
 #TEMP FILES  probably no need for customisation.
 

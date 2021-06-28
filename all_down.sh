@@ -9,11 +9,11 @@ main_log="${main_dir}/main_log.txt"
 empty_database="${main_dir}/EbiSample.db"
 
 #python runnables
-runnable_fillsample="${main_dir}/fillsamples.py"
+runnable_fillsample="python ${main_dir}/fillsamples.py"
 fillsamplelogfile="${main_dir}/fillsamples.log"
 
 #log files for python runnables
-runnable_studydump="${main_dir}/dumpsamples.py"
+runnable_studydump="python ${main_dir}/dumpsamples.py"
 studydumplogfile="${main_dir}/dumpsamples.log"
 
 #ENA API dumps for plant samples (tsv), plant studies (json), analysis (ERZ) data (json)
@@ -26,14 +26,9 @@ ENAanal_log="${ENAanal}.log"
 ENAstud="${main_dir}/allstud.json"
 
 #json file dumps (they are put in main_dir before being copied to ftp_dir afterwards)
-ftp_dir='/nfs/ensemblgenomes/ftp/pub/misc_data/plant_index'
-
-#ftp://ftp.ensemblgenomes.org/pub/misc_data/plant_index/
-#studyjson="${main_dir}/study_dump.json"
-#germplasmjson="${main_dir}/gp_dump.json"
-#in codon, TOBETESTED
-studyjson="${main_dir}/study.json"
-germplasmjson="${main_dir}/germplasm.json"
+ftp_dir='/nfs/ensemblgenomes/ftp/pub/misc_data/plant_index' #-> ftp://ftp.ensemblgenomes.org/pub/misc_data/plant_index/
+studyjson="${main_dir}/study.json" # was study_dump.json
+germplasmjson="${main_dir}/germplasm.json" # was gp_dump.json
 
 #TEMP FILES  probably no need for customisation.
 

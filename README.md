@@ -9,9 +9,9 @@ The EBI has many databases and services so it is not feasible to build a custom 
 The JSON files are placed on an ftp server so that FAIRDARE can access them. 
 Currently the FTP URL is: [ftp.ensemblgenomes.org/pub/misc_data/plant_index](ftp://ftp.ensemblgenomes.org/pub/misc_data/plant_index)
 
-The contacts at FAIRDARE arranging this are:
+The contacts at FAIRDARE arranging this on 2021 are:
 Cyril Pommier <cyril.pommier@inra.fr>
-Bilal El-Houdaigui <Bilal.El-Houdaigui@inra.fr>
+Maud Marty <maud.marty@inrae.fr>
 Jeremy Destin <Jeremy.Destin@inra.fr>
 
 ### Customisations
@@ -34,16 +34,6 @@ Version used: Python 3.5.1
 * lxml==4.2.1
 * requests==2.19.1
 * urllib3==1.23
-
-You do not have to install any packages if you use the original Python installation (EBI internal) for this project here:
-/nfs/production/panda/ensemblgenomes/development/mrossello/python_installation/bin/python
-
-Both Python scripts fillsamples.py and dumpsamples.py have the above installation in their 'shebang' line and thus can be run from the command line or via the shell script included without any additional action. 
-
-For testing or running independently you can enter a virtual environment by executing the following
-```bash
-source /nfs/production/panda/ensemblgenomes/development/mrossello/python_installation/bin/activate
-```
 
 ### Set up variables
 All variables and settings are in the bash shell script all_down.sh.

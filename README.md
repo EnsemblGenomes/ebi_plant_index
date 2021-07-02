@@ -12,6 +12,7 @@ Currently the FTP URL is: [ftp.ensemblgenomes.org/pub/misc_data/plant_index](ftp
 The contacts at FAIRDARE arranging this on 2021 are:
 Cyril Pommier <cyril.pommier@inra.fr>
 Maud Marty <maud.marty@inrae.fr>
+Raphael-Gauthier Flores <raphael.flores@inrae.fr>
 
 ### Customisations
 

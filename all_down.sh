@@ -160,7 +160,7 @@ echo "This file will have duplicates but they will be removed at the next stage"
 #fillsample python class ($runnable_fillsample) takes the files created above and populates $database
 echo "Step 4: running ${runnable_fillsample} to populate ${database}" | tee -a $main_log
 timenow=$(date '+%s')
-$runnable_fillsample $database $ENAsamp $ENAanal $ENAstud $fillsamplelogfile
+$runnable_fillsample --db $database --samples $ENAsamp --analysis $ENAanal --studies $ENAstud --log_file $fillsamplelogfile --quiet
 problem=$?
 if [ $problem -ne 0 ] 
 then

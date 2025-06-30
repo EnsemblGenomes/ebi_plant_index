@@ -1,263 +1,420 @@
-from lxml import etree
-import ijson
-import sqlite3
-import sys
+#!/usr/bin/env python
+# Copyright [2016-2025] EMBL-European Bioinformatics Institute
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Extract ENA sample, analysis and studies information and store it in the provided SQLite database."""
+
+import argparse
 import logging
-import os
-#from os.path import dirname
+from pathlib import Path
+import sqlite3
+from typing import Any
 
-class FillSamples:
-
-    def __init__(self,db_file,enasamp,analysis,enastud):
-        self.context = etree.iterparse(enasamp,events=('end',),tag='SAMPLE')
-        self.conn = sqlite3.connect(db_file)
-        self.cur = self.conn.cursor()
-        self.jfile = open(analysis,'rb')
-        self.aobjects = ijson.items(self.jfile,'item')
-        self.sjfile = open(enastud,'rb')
-        self.sobjects = ijson.items(self.sjfile,'item')
-
-        self.sample_num = 0
-        self.current_sample = None
-
-    def fillTables(self):
-        for action, elem in self.context:
-            self.sample_num += 1
-            if self.sample_num % 1000 == 0:
-                logging.info('parsing sample #{}'.format(str(self.sample_num)))
-
-            try:
-                self.__tableSample(elem)
-            except AttributeError as err:
-                logging.error('can not grab biosample_id/title/taxonomy for sample number {} so will not add to sample table: {}'.format(str(self.sample_num), err))
-                continue
-            except sqlite3.IntegrityError as ierr:
-                logging.error('could not put sample {} into sample table. skipping. {}'.format(self.current_sample, ierr))
-                continue
-            except IdError as iderr:
-                logging.error('for sample number {}, could not get id. Skipping. {}'.format(self.sample_num,iderr))
-                continue
-
-            try:
-                self.__brokerName(elem) #add broker name and centre name
-            except:
-                logging.error("Unexpected error adding center/broker names to sample {}. {}".format(self.current_sample, sys.exc_info()))
-
-            try:
-                self.__tableAtt(elem)
-            except:
-                logging.error("Unexpected error adding attributes to sample:{}. {}".format(self.current_sample, sys.exc_info()))
-
-            try:
-                self.__tableLinks(elem)
-            except:
-                logging.error("Unexpected error adding ENA runs to sample:{}. {}".format(self.current_sample, sys.exc_info()))
-
-            elem.clear()
-# taken from here [https://www.ibm.com/developerworks/library/x-hiperfparse/index.html]. not sure if necesary but attempting to use less run time memory:
-            while elem.getprevious() is not None: 
-                del elem.getparent()[0]
+from ensembl.utils.argparse import ArgumentParser
+from ensembl.utils.logging import init_logging_with_args
+import ijson
+from lxml import etree
 
 
-    def __tableSample(self, elem): #<SAMPLE>
-        desc = None
-        taxname = None
-        all_ext_tag = elem.find("IDENTIFIERS").findall("EXTERNAL_ID")
-        ext_tag = [i.text for i in all_ext_tag if i.get('namespace') == "BioSample"]
-        if len(ext_tag) < 1:
-            raise IdError("can't find any BioSample in EXTERNAL_ID namespace")
-        biosample_id = ext_tag[0]
-        title = elem.find("TITLE").text
-        taxnum = elem.find("SAMPLE_NAME").find("TAXON_ID").text
-        taxname_element = elem.find("SAMPLE_NAME").find("SCIENTIFIC_NAME")
-        if taxname_element is not None: # does happen. for eg SAMN00194153
-            taxname = taxname_element.text
+__BATCH_SIZE = 50000
+_INSERT_SAMPLE_QUERY = (
+    "INSERT OR IGNORE INTO SAMPLE (ID, TAX, NAME, TITLE, DESC, CENTER, BROKER, STUDY, AE) VALUES "
+    "(:sample_id, :taxon_id, :taxon_name, :title, :description, :center, :broker, :study, :array_express)"
+)
+_INSERT_ATTRIBUTES_QUERY = (
+    "INSERT OR IGNORE INTO ATTRIBUTES (ID, FIELD, VALUE, UNITS) VALUES (:sample_id, :field, :value, :units)"
+)
+_INSERT_DATA_QUERY = (
+    "INSERT OR IGNORE INTO DATA (ID, DATA_ID, TYPE, URL, STUDY, TITLE, MD5) VALUES "
+    "(:sample_id, :data_id, :data_type, :url, :study, :title, :md5)"
+)
+_INSERT_STUDY_QUERY = (
+    "INSERT OR IGNORE INTO STUDY (PROJECT, STUDY, NAME, TITLE, DESC, ISOLATE, CULTIVAR, BREED, GEO_ACC) "
+    "VALUES (:project, :study, :name, :title, :description, :isolate, :cultivar, :breed, :geo_accession)"
+)
+
+
+def _extract_sample_data(sample: etree.Element, sample_count: int) -> dict[str, Any] | None:
+    """Extract BioSample ID, title, description and taxonomy information from ENA sample.
+
+    Args:
+        sample: ENA sample element.
+        sample_count: Sample number to add to log report if identifiers are not present.
+
+    Returns:
+        Dictionary with the extracted values or `None` if any but description is missing.
+
+    """
+    # Get BioSample ID
+    identifiers = sample.find("IDENTIFIERS")
+    if identifiers is not None:
+        all_external_tags = identifiers.findall("EXTERNAL_ID")
+        external_tag = [tag.text for tag in all_external_tags if tag.get("namespace", "") == "BioSample"]
+        if len(external_tag) > 0:
+            biosample_id = external_tag[0]
+            # Get title
+            title = sample.findtext("TITLE")
+            if title is not None:
+                # Get taxon ID and name
+                sample_name_element = sample.find("SAMPLE_NAME")
+                if sample_name_element is not None:
+                    taxon_id = sample_name_element.findtext("TAXON_ID")
+                    if taxon_id is not None:
+                        taxon_name = sample_name_element.findtext(
+                            "SCIENTIFIC_NAME", default=sample_name_element.findtext("COMMON_NAME")
+                        )
+                        if taxon_name is not None:
+                            return {
+                                "sample_id": biosample_id,
+                                "taxon_id": taxon_id,
+                                "taxon_name": taxon_name,
+                                "title": title,
+                                "description": sample.findtext("DESCRIPTION", default=""),
+                                "center": sample.get("center_name", ""),
+                                "broker": sample.get("broker_name", ""),
+                                "study": "",
+                                "array_express": "",
+                            }
+                        logging.error(f"Sample {biosample_id} has no taxon name, skipping")
+                    else:
+                        logging.error(f"Sample {biosample_id} has no taxon ID, skipping")
+                else:
+                    logging.error(f"Sample {biosample_id} has no sample name, skipping")
+            else:
+                logging.error(f"Sample {biosample_id} has no title, skipping")
         else:
-            taxname = elem.find("SAMPLE_NAME").find("COMMON_NAME").text
-        desc_element = elem.find("DESCRIPTION")
-        values = [biosample_id,taxnum,taxname,title]
-        query = "INSERT INTO SAMPLE ({},{},{},{}) VALUES (?,?,?,?)".format("ID","TAX","NAME","TITLE")
-        if desc_element is not None: #Description may or may not be available
-            desc = desc_element.text
-            query = "INSERT INTO SAMPLE ({},{},{},{},{}) VALUES (?,?,?,?,?)".format("ID","TAX","NAME","TITLE","DESC")
-            values.append(desc)
-        self.current_sample = biosample_id   
-        self.conn.execute(query,values)
-        self.conn.commit()
+            logging.error(f"Sample #{sample_count} has no BioSample ID, skipping")
+    else:
+        logging.error(f"Sample #{sample_count} has no identifiers, skipping")
+    return None
 
-    def __tableAtt(self, elem): #<SAMPLE_ATTRIBUTES>
-        attrs = elem.find("SAMPLE_ATTRIBUTES")
-        for attr in attrs: 
-            field = attr.find("TAG"); #not asking for .text so should not throw error
-            value = attr.find("VALUE");
-            units = attr.find("UNITS");
-            if field is not None and value is not None:
-                query = "INSERT INTO ATTRIBUTES (ID,FIELD,VALUE) VALUES (?,?,?)"
-                values = [self.current_sample,field.text.lower(),value.text]
-                if units is not None:
-                    query = "INSERT INTO ATTRIBUTES (ID,FIELD,VALUE,UNITS) VALUES (?,?,?,?)"
-                    values.append(units.text)
-                try:
-                    self.conn.execute(query,values)
-                    self.conn.commit()
-                except sqlite3.IntegrityError as inerr:
-                    logging.error("integrity error adding attribute {}, value {}, to sample {}. The field has probably been used twice. Skipping this attribute. {}".format(field.text,value.text,self.current_sample, inerr))
 
-    def __tableLinks(self,elem): #<SAMPLE_LINKS>
-        links = elem.find("SAMPLE_LINKS")
-        for link in links:
-            tagdb = link[0][0].text
-            if tagdb == "ENA-RUN":
-                runs = link[0][1].text.split(',')
-                exp_runs = []
-                [exp_runs.extend(EnaAccTool.expandRange(dash)) for dash in runs]
-                dir_urls = list(map(EnaAccTool.guessRunLink,exp_runs))
-                for runid,url in zip(exp_runs,dir_urls):
-                    query = "INSERT INTO DATA (ID,DATA_ID,TYPE,URL) VALUES (?,?,?,?)"
-                    self.conn.execute(query,(self.current_sample,runid,'ENA RUN',url))
-                    self.conn.commit()
-            elif tagdb == "ENA-STUDY":
-                studyid = link[0][1].text
-                query = "UPDATE SAMPLE SET STUDY = ? WHERE ID = ?"
-                self.conn.execute(query,(studyid,self.current_sample))
-                self.conn.commit()
-            elif tagdb == "ARRAYEXPRESS":
-                aeid = link[0][1].text
-                query = "UPDATE SAMPLE SET AE = ? WHERE ID = ?"
-                self.conn.execute(query,(aeid,self.current_sample))
-                self.conn.commit()
+def _extract_sample_attributes(sample: etree.Element, sample_id: int) -> list[dict[str, Any]]:
+    """Extract ENA sample attributes: "field", "value" and "units".
 
-    def __brokerName(self, elem):
-        broker = elem.get('broker_name') #look for 'ArrayExpress' to find RNAseq data
-        center = elem.get('center_name')
-        query = 'UPDATE SAMPLE SET CENTER = ?, BROKER = ? WHERE ID = ?'
-        args = [center,broker,self.current_sample]
-        self.conn.execute(query,args) #accepts null values
-        self.conn.commit()
-            
-        
-    def fillTableAnalysis(self):
-#        for prefix, event, value in self.jparse:
-#            print('prefix={}, event={}, value={}'.format(prefix, event, value))
-        count = 0
-        for o in self.aobjects: 
-            anal_acc = o['analysis_accession']
-            samp_acc = o['sample_accession']
-            file_url = o['submitted_ftp']
-            if file_url == '':
-                logging.debug('skipping {} because no file found'.format(anal_acc))
+    Args:
+        sample: ENA sample element.
+        sample_id: BioSample ID.
+
+    Returns:
+        List of dictionaries with the extracted values for each attribute found.
+
+    """
+    all_attributes = sample.find("SAMPLE_ATTRIBUTES")
+    attributes_values = []
+    for attribute in all_attributes:
+        field = attribute.findtext("TAG")
+        value = attribute.findtext("VALUE")
+        units = attribute.findtext("UNITS", default="")
+        if field is None or value is None:
+            logging.error(f"Sample {sample_id} has an attribute with no field or value, skipping")
+            continue
+        attributes_values.append(
+            {
+                "sample_id": sample_id,
+                "field": field.lower(),
+                "value": value,
+                "units": units,
+            }
+        )
+    return attributes_values
+
+
+def _expand_range(id_range: str) -> list[str]:
+    """Expand a range in the format "SRR123456-SRR123460" to its individual IDs.
+
+    Args:
+        id_range: Range of IDs in the format "ID1-ID2".
+
+    Returns:
+        List of individual IDs.
+
+    """
+    range_tuple = id_range.split("-")
+    if len(range_tuple) == 1:
+        return [id_range]
+    prefix = range_tuple[0][:3]
+    return [f"{prefix}{x:06d}" for x in range(int(range_tuple[0][3:]), int(range_tuple[1][3:]) + 1)]
+
+
+def _infer_run_link(run_id: str) -> str:
+    """Infer the SRA URL link to the FastQ file corresponding to the given ENA run ID.
+
+    Args:
+        run_id: ENA run ID
+
+    Returns:
+        SRA URL for the FastQ file corresponding to the given ENA run ID.
+
+    """
+    full_url = f"ftp://ftp.sra.ebi.ac.uk/vol1/fastq/{run_id[:6]}/"
+    if len(run_id) > 9:
+        full_url += f"00{run_id[-1]}/"
+    full_url += run_id
+    return full_url
+
+
+def _extract_sample_links(sample: etree.Element, sample_values: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract ENA sample links: ENA study and Array Express, as well as ENA run information.
+
+    ENA study and Array Express information is added to `sample_values`.
+
+    Args:
+        sample: ENA sample element.
+        sample_values: ENA sample attributes.
+
+    Returns:
+        List of dictionaries with the extracted values for each ENA run found.
+
+    """
+    all_links = sample.find("SAMPLE_LINKS")
+    data_values: list[dict[str, Any]] = []
+    for link in all_links:
+        db_tag = link[0][0].text
+        if db_tag == "ENA-RUN":
+            for dash in link[0][1].text.split(","):
+                data_values.extend(
+                    {
+                        "sample_id": sample_values["sample_id"],
+                        "data_id": run_id,
+                        "data_type": "ENA RUN",
+                        "url": _infer_run_link(run_id),
+                        "study": "",
+                        "title": "",
+                        "md5": "",
+                    }
+                    for run_id in _expand_range(dash)
+                )
+        elif db_tag == "ENA-STUDY":
+            sample_values["study"] = link[0][1].text
+        elif db_tag == "ARRAYEXPRESS":
+            sample_values["array_express"] = link[0][1].text
+    return data_values
+
+
+def _commit_sample_data(
+    connection: sqlite3.Connection,
+    sample_table_data: list[dict[str, Any]],
+    attributes_table_data: list[dict[str, Any]],
+    data_table_data: list[dict[str, Any]],
+) -> None:
+    """Commit all sample data collected in one transaction.
+
+    Args:
+        connection: Open connection to SQLite database.
+        sample_table_data: Data to commit to SAMPLE table.
+        attributes_table_data: Data to commit to ATTRIBUTES table.
+        data_table_data: Data to commit to DATA table.
+
+    """
+    connection.executemany(_INSERT_SAMPLE_QUERY, sample_table_data)
+    connection.executemany(_INSERT_ATTRIBUTES_QUERY, attributes_table_data)
+    connection.executemany(_INSERT_DATA_QUERY, data_table_data)
+    connection.commit()
+    logging.info(f"Stored {len(sample_table_data)} samples in the database")
+    logging.info(f"Stored {len(attributes_table_data)} attributes in the database")
+    logging.info(f"Stored {len(data_table_data)} data entries in the database")
+
+
+def populate_db_from_samples(db_file: Path, samples_file: Path) -> None:
+    """Populate the database with ENA samples.
+
+    Args:
+        db_file: SQLite database file (schema must be created first).
+        samples_file: ENA samples XML file.
+
+    """
+    # Prepare data to import
+    connection = sqlite3.connect(db_file)
+    sample_count = 0
+    sample_table_data: list[dict[str, Any]] = []
+    attributes_table_data: list[dict[str, Any]] = []
+    data_table_data: list[dict[str, Any]] = []
+    for _, sample in etree.iterparse(samples_file, events=("end",), tag="SAMPLE"):
+        sample_count += 1
+        if sample_count % __BATCH_SIZE == 1:
+            logging.info(f"Processing study #{sample_count}")
+        sample_values = _extract_sample_data(sample, sample_count)
+        if not sample_values:
+            continue
+        sample_table_data.append(sample_values)
+        attributes_values = _extract_sample_attributes(sample, sample_values["sample_id"])
+        attributes_table_data.extend(attributes_values)
+        data_values = _extract_sample_links(sample, sample_values)
+        data_table_data.extend(data_values)
+        # Remove the subtree related with this sample to speed up traversing the XML tree
+        sample.clear()
+        while sample.getprevious() is not None:
+            del sample.getparent()[0]
+        # Commit values into the database in batches so improve performance
+        if sample_count % __BATCH_SIZE == 0:
+            _commit_sample_data(connection, sample_table_data, attributes_table_data, data_table_data)
+            sample_table_data.clear()
+            attributes_table_data.clear()
+            data_table_data.clear()
+    _commit_sample_data(connection, sample_table_data, attributes_table_data, data_table_data)
+    connection.close()
+    logging.info(f"Finished processing {sample_count} samples")
+
+
+def _commit_analysis_data(connection: sqlite3.Connection, data_table_data: list[dict[str, Any]]) -> None:
+    """Commit all analysis data collected in one transaction.
+
+    Args:
+        connection: Open connection to SQLite database.
+        data_table_data: Data to commit to DATA table.
+
+    """
+    connection.executemany(_INSERT_DATA_QUERY, data_table_data)
+    connection.commit()
+    logging.info(f"Stored {len(data_table_data)} data entries in the database")
+
+
+def populate_db_from_analysis(db_file: Path, analysis_file: Path) -> None:
+    """Populate the database with ENA analysis data.
+
+    Args:
+        db_file: SQLite database file (schema must be created first).
+        analysis_file: Analysis JSON file.
+
+    """
+    connection = sqlite3.connect(db_file)
+    data_table_data: list[dict[str, Any]] = []
+    index = 0
+    with analysis_file.open("rb") as analysis_data:
+        for analysis in ijson.items(analysis_data, "item"):
+            index += 1
+            if index % __BATCH_SIZE == 1:
+                logging.info(f"Processing analysis #{index}")
+            analysis_accession = analysis["analysis_accession"]
+            ftp_url = analysis["submitted_ftp"]
+            if not ftp_url:
+                logging.debug(f"Analysis #{analysis_accession} is missing the file URL, skipping")
                 continue
-            count += 1
-            if count % 10000 == 0:
-                logging.info('parsing analysis #{}'.format(str(count)))
-            split_url = file_url.split(';')
-            index = 0
-            if len(split_url) == 2:
-                if split_url[0].endswith('.md5'): #if not md5 then prob .cram/.vcf/.tab
-                    index = 1
-                file_url = split_url[index]
-            md5 = o['submitted_md5'].split(';')[index] #tested with empty values and does not throw error
-            if len(split_url) > 2:
-                file_url = os.path.dirname(split_url[index]) 
-
-            study = o['study_accession']
-            atype = o['analysis_type']
-            title = o['analysis_title']
-            query = "INSERT INTO DATA (ID,DATA_ID,TYPE,URL,STUDY,TITLE,MD5) VALUES (?,?,?,?,?,?,?)"
-            try:
-                self.conn.execute(query,(samp_acc,anal_acc,atype,file_url,study,title,md5)) #should catch error here so it doesn't give up at the first problem
-                self.conn.commit()
-            except sqlite3.IntegrityError as interr:
-                logging.error('primary key unique constraint: data id {} and sample id {}. {}'.format(anal_acc,sample_acc,interr))
-            except:
-                logging.error("Unexpected error adding analysis {} / sample {}. count {}. {}:".format(anal_acc,samp_acc,str(count),sys.exc_info()[0]))
-
-
-    def fillTableStudy(self):
-        count = 0
-        for o in self.sobjects:
-            count +=1
-            proj = o['study_accession']
-            stud = o['secondary_study_accession']
-            name = self.__indict(o,'study_name',self.__indict(o,'study_alias',None))
-            title = self.__indict(o,'study_title',None)
-            desc = self.__indict(o,'study_description',None)
-            iso = self.__indict(o,'isolate',None)
-            cult = self.__indict(o,'cultivar',None)
-            breed = self.__indict(o,'breed',None)
-            geo = self.__indict(o,'geo_accession',None)
-            if count % 10000 == 0: #10000
-                logging.info('parsing study #{} ({}/{})'.format(str(count),proj,stud))
-            query = "INSERT INTO STUDY (PROJECT,STUDY,NAME,TITLE,DESC,ISOLATE,CULTIVAR,BREED,GEO_ACC) VALUES (?,?,?,?,?,?,?,?,?)"
-            try:
-                self.conn.execute(query,(proj,stud,name,title,desc,iso,cult,breed,geo))
-                self.conn.commit()
-            except sqlite3.IntegrityError as interr:
-                logging.error('primary key unique constraint: project id {} and study id {}. {}'.format(proj,stud,interr))                
-            except:
-                logging.error("Unexpected error adding project {} / study {}. count {}. {}:".format(proj,study,str(count),sys.exc_info()[0]))
-            
-
-    def __indict(self,d,k,default): #helper function: if key in dict return value else return default
-        if k in d:
-            return d[k]
-        else:
-            return default      
+            urls = ftp_url.split(";")
+            url_index = 0
+            if len(urls) == 2:
+                url_index = 1 if urls[0].endswith(".md5") else 0
+            file_url = urls[url_index]
+            if len(urls) > 2:
+                file_url = str(Path(file_url).parent)
+            data_table_data.append(
+                {
+                    "sample_id": analysis["sample_accession"],
+                    "data_id": analysis_accession,
+                    "data_type": analysis["analysis_type"],
+                    "url": file_url,
+                    "study": analysis["study_accession"],
+                    "title": analysis["analysis_title"],
+                    "md5": analysis["submitted_md5"].split(";")[url_index],
+                }
+            )
+            # Commit values into the database in batches so improve performance
+            if index % __BATCH_SIZE == 0:
+                _commit_analysis_data(connection, data_table_data)
+                data_table_data.clear()
+    _commit_analysis_data(connection, data_table_data)
+    connection.close()
+    logging.info(f"Finished processing {index} analysis")
 
 
-    def close(self):
-        del self.context
-        self.cur.close()
-        self.conn.close()
-        self.jfile.close()
-        self.sjfile.close()
+def _commit_studies_data(connection: sqlite3.Connection, study_table_data: list[dict[str, Any]]) -> None:
+    """Commit all studies data collected in one transaction.
+
+    Args:
+        connection: Open connection to SQLite database.
+        study_table_data: Data to commit to STUDY table.
+
+    """
+    connection.executemany(_INSERT_STUDY_QUERY, study_table_data)
+    connection.commit()
+    logging.info(f"Stored {len(study_table_data)} studies in the database")
 
 
-class EnaAccTool:
+def populate_db_from_studies(db_file: Path, studies_file: Path) -> None:
+    """Populate the database with ENA studies data.
 
-    @staticmethod
-    def expandRange(dash): 
-        arr = dash.split('-')
-        if len(arr) > 1:
-            pref = arr[0][:3]
-            expanded = list(range(int(arr[0][3:]),int(arr[1][3:])+1))
-            needzero = len(arr[1][3:]) - len(str(int(arr[1][3:]))) #flanking 0s dissappear when doing int conversion, so i need to put them back
-            if needzero > 0:
-                pref += ('0' * needzero)
-            return [pref + str(x) for x in expanded]
-        else:
-            return [dash]
+    Args:
+        db_file: SQLite database file (schema must be created first).
+        studies_file: ENA studies JSON file.
 
-    @staticmethod
-    def guessRunLink(runid):
-        #SRR7849281 = ftp.sra.ebi.ac.uk/vol1/fastq/SRR784/001/SRR7849281/SRR7849281_1.fastq.gz
-        #And one for _2 file too. can't know if paired so will guess directory only
-        baseurl = 'ftp://ftp.sra.ebi.ac.uk/vol1/fastq/'
-        pref = runid[:6]
-        sev = '00' + runid[-1]
-        fullurl = baseurl + pref + '/' + runid
-        if len(runid) > 9:
-            fullurl = baseurl + pref + '/' + sev + '/' + runid
-        return fullurl
+    """
+    connection = sqlite3.connect(db_file)
+    study_table_data: list[dict[str, Any]] = []
+    index = 0
+    with studies_file.open("rb") as studies:
+        for study in ijson.items(studies, "item"):
+            index += 1
+            if index % __BATCH_SIZE == 1:
+                logging.info(f"Processing study #{index}")
+            study_table_data.append(
+                {
+                    "project": study["study_accession"],
+                    "study": study["secondary_study_accession"],
+                    "name": study.get("study_name", study.get("study_alias", "")),
+                    "title": study.get("study_title", ""),
+                    "description": study.get("study_description", ""),
+                    "isolate": study.get("isolate", ""),
+                    "cultivar": study.get("cultivar", ""),
+                    "breed": study.get("breed", ""),
+                    "geo_accession": study.get("geo_accession", ""),
+                }
+            )
+            # Commit values into the database in batches so improve performance
+            if index % __BATCH_SIZE == 0:
+                _commit_studies_data(connection, study_table_data)
+                study_table_data.clear()
+    _commit_studies_data(connection, study_table_data)
+    connection.close()
+    logging.info(f"Finished processing {index} studies")
 
-class IdError(Exception):
-    def __init__(self, value):
-        self.value = value
-    def __str__(self):
-        return repr(self.value)
 
-def main():
-    logging.basicConfig(filename=sys.argv[5], level=logging.DEBUG)
-#    logging.basicConfig(level=logging.DEBUG) #to stdout
-    db = sys.argv[1]
-    enasamp = sys.argv[2]
-    analysis = sys.argv[3]
-    enastud = sys.argv[4]
-    s = FillSamples(db,enasamp,analysis,enastud)
-    s.fillTables()
-    s.fillTableAnalysis()
-    s.fillTableStudy()
-    s.close()
+def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
+    """Parse the arguments from a list or from the command line.
 
-if __name__== "__main__":
+    Args:
+        arg_list: List of arguments to parse. If `None`, grab them from the command line.
+
+    Returns:
+        Parsed arguments.
+
+    """
+    parser = ArgumentParser(description=__doc__)
+    parser.add_argument_dst_path(
+        "--db", required=True, help="SQLite database file (schema must be created first)"
+    )
+    parser.add_argument_src_path("--samples", required=True, help="ENA samples XML file")
+    parser.add_argument_src_path("--analysis", required=True, help="analysis JSON file")
+    parser.add_argument_dst_path("--studies", required=True, help="ENA studies JSON file")
+    parser.add_log_arguments(add_log_file=True)
+    return parser.parse_args(arg_list)
+
+
+def main(arg_list: list[str] | None = None) -> None:
+    """Run module's entry-point.
+
+    Args:
+        arg_list: Arguments to parse passing list to `parse_args()`.
+
+    """
+    args = parse_args(arg_list)
+    if not args.db.exists():
+        raise FileNotFoundError(f"Database file {args.db} does not exist. Please create the schema first.")
+    init_logging_with_args(args)
+    populate_db_from_samples(args.db, args.samples)
+    populate_db_from_analysis(args.db, args.analysis)
+    populate_db_from_studies(args.db, args.studies)
+
+
+if __name__ == "__main__":
     main()

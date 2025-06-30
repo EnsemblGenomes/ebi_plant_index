@@ -1,0 +1,95 @@
+# See the NOTICE file distributed with this work for additional information
+# regarding copyright ownership.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[project]
+name = "ebi_plant_index"
+description = "Collation of EBI Plant Samples and associated data files into JSON for incorporation into FAIR Data-finder for Agronomic REsearch"
+requires-python = ">= 3.10"
+dependencies = [
+    "certifi == 2018.4.16",
+    "chardet == 3.0.4",
+    "ensembl-utils >= 0.7.0",
+    "idna >= 2.7",
+    "ijson == 2.3",
+    "lxml >= 4.2.1",
+    "requests == 2.19.1",
+    "urllib3 == 1.23",
+]
+version = "v1.0"
+readme = "README.md"
+authors = [
+    {name = "Ensembl", email = "dev@ensembl.org"},
+]
+keywords = [
+    "elixir",
+    "ensembl",
+    "fairdare",
+    "plant",
+]
+
+[project.optional-dependencies]
+cicd = [
+    "black >= 23.11.0",
+    "mypy >= 1.2.0",
+    "pylint >= 3.0.2",
+    "ruff >= 0.11.11",
+    "types-requests",
+]
+
+[tool.black]
+line-length = 110
+
+[tool.pylint.main]
+max-line-length = 110
+disable = [
+    "c-extension-no-member",
+    "logging-fstring-interpolation",
+]
+max-nested-blocks = 6
+
+[tool.ruff]
+line-length = 110
+show-fixes = true
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = [
+    "ALL",
+]
+ignore = [
+    "COM812",  # https://docs.astral.sh/ruff/rules/trailing-comma-on-bare-tuple/
+    "D203",  # https://docs.astral.sh/ruff/rules/one-blank-line-before-class/
+    "D211",  # https://docs.astral.sh/ruff/rules/blank-line-before-class/
+    "D213",  # https://docs.astral.sh/ruff/rules/multi-line-summary-second-line/
+    "EM102",  # https://docs.astral.sh/ruff/rules/f-string-in-exception/
+    "G004",  # https://docs.astral.sh/ruff/rules/logging-f-string/
+    "I001",  # https://docs.astral.sh/ruff/rules/unsorted-imports/
+    "LOG015",  # https://docs.astral.sh/ruff/rules/root-logger-call/
+    "PLR2004",  # https://docs.astral.sh/ruff/rules/magic-value-comparison/
+    "TRY003",  # https://docs.astral.sh/ruff/rules/raise-vanilla-args/
+]
+
+[tool.ruff.lint.pylint]
+max-nested-blocks = 6
+
+[tool.mypy]
+disallow_untyped_defs = true
+explicit_package_bases = true
+ignore_missing_imports = true
+show_error_codes = true
+warn_unused_configs = true
+disable_error_code = "method-assign"
